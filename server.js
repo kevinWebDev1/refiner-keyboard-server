@@ -151,7 +151,7 @@ app.post("/chat", (req, res) => handleRequest(req, res, "chat"));
 
 app.get("/app-update", (req, res) => {
     const clientVersion = req.query.version || "0.0";
-    const latestVersion = "3.0.0";
+    const latestVersion = "3.1.0";
     const updateAvailable = clientVersion !== latestVersion;
 
     res.json({
@@ -159,15 +159,13 @@ app.get("/app-update", (req, res) => {
         latestVersion,
         forceUpdate: false,
         updateUrl: "https://kevinwebstore.vercel.app",
-        changelog: `🚀 Refiner v3.0.0 is Here! Our biggest update yet.
+        changelog: `🚀 Refiner v3.1.0 is Live! 
 
-• Refine Key: Fix misspelled text in just one tap
-• Chat Key: Chat with AI directly in your keyboard
-• AI Keys: Change your tone or rewrite text instantly
-• Instant Auto-Fill: Smart emails and passwords entry
-• Translate Anything: Dedicated native-style translation
-• Unified Search: Search emojis and clips in one place
-• Smart Sync: Get your data in any phone in need`,
+• New Password Manager: Secure Vault with Biometric support
+• Enhanced Security: App-wide FLAG_SECURE protection
+• UI Polish: Modern Material switches & refined layout
+• Smarter Logic: Improved phrase replacement & unified controls
+• Logic Fixes: Backend sync & storage reliability`,
     });
 });
 
