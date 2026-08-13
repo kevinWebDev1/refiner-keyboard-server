@@ -12,7 +12,7 @@ app.use(express.json());
 
 // ---------------------- CONFIG ----------------------
 const MODEL_NAME_GEMINI = "gemini-2.5-flash-lite";
-const GROQ_MODEL = "qwen/qwen3-32b";
+const GROQ_MODEL = "llama-3.1-8b-instant"; // Groq model names don't use slashes! "qwen/qwen3-32b" is an OpenRouter format.
 const DAILY_LIMIT = 30;
 
 // ---------------------- IN-MEMORY LIMIT ----------------------
