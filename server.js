@@ -151,21 +151,35 @@ app.post("/chat", (req, res) => handleRequest(req, res, "chat"));
 
 app.get("/app-update", (req, res) => {
     const clientVersion = req.query.version || "0.0";
-    const latestVersion = "3.1.0";
-    const updateAvailable = clientVersion !== latestVersion;
+    const latestVersion = "3.2.0";
+    
+    // Quick semantic version check
+    const isNewer = (latest, current) => {
+        const lParts = latest.split(".");
+        const cParts = current.split(".");
+        for (let i = 0; i < Math.max(lParts.length, cParts.length); i++) {
+            const l = parseInt(lParts[i]) || 0;
+            const c = parseInt(cParts[i]) || 0;
+            if (l > c) return true;
+            if (l < c) return false;
+        }
+        return false;
+    };
+    
+    const updateAvailable = isNewer(latestVersion, clientVersion);
 
     res.json({
         updateAvailable,
         latestVersion,
         forceUpdate: false,
-        updateUrl: "https://kevinwebstore.vercel.app",
-        changelog: `🚀 Refiner v3.1.0 is Live! 
+        updateUrl: "https://refiner-backend.vercel.app",
+        changelog: `🚀 Refiner v3.2.0 is Live! 
 
-• New Password Manager: Secure Vault with Biometric support
-• Enhanced Security: App-wide FLAG_SECURE protection
-• UI Polish: Modern Material switches & refined layout
-• Smarter Logic: Improved phrase replacement & unified controls
-• Logic Fixes: Backend sync & storage reliability`,
+• New Refiner Vault: Secure password manager with biometrics
+• UI Enhancements: Better translation chips & cleaner Numpad
+• Dynamic Next-Word Prediction: Local Mind learns as you type
+• Smart Auto-Cleanup: Instant background clipboard purging
+• UX Polish: Flawless update checks & smart selection logic`,
     });
 });
 
