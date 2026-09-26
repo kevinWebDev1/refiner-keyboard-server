@@ -11,8 +11,20 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------------- CONFIG ----------------------
-const MODEL_NAME_GEMINI = "gemini-2.5-flash-lite";
-const GROQ_MODEL = "llama-3.1-8b-instant"; // Groq model names don't use slashes! "qwen/qwen3-32b" is an OpenRouter format.
+const GEMINI_MODELS = [
+    "gemini-3.5-flash-lite", // Primary: Ultra-fast typing autocomplete
+    "gemini-3.8-flash",      // Primary: High intelligence & fast rephrasing
+    "gemini-2.5-flash",      // Backup 1: Price-performance fallback
+    "gemini-2.5-flash-lite", // Backup 2: Lightweight fallback
+    "gemini-2.5-pro"         // Backup 3: Complex reasoning fallback
+];
+const GROQ_MODELS = [
+    "llama-3.1-8b-instant",     // Primary: Ultra-low latency
+    "llama-3.3-70b-versatile",  // Primary: High accuracy / 70B intelligence
+    "llama-3.2-3b-preview",     // Backup 1: Lightweight fallback
+    "gemma2-9b-it",             // Backup 2: Open-weights alternative fallback
+    "mixtral-8x7b-32768"        // Backup 3: MoE fallback
+];
 const DAILY_LIMIT = 30;
 
 // ---------------------- IN-MEMORY LIMIT ----------------------
@@ -53,21 +65,26 @@ function cleanGroqOutput(text = "") {
 
 // ---------------------- AI HANDLERS ----------------------
 async function callGemini(text, apiKey, prompt) {
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME_GEMINI}:generateContent?key=${apiKey}`;
+    for (const model of GEMINI_MODELS) {
+        try {
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const response = await axios.post(
+                API_URL,
+                {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                },
+                { headers: { "Content-Type": "application/json" }, timeout: 10000 }
+            );
 
-    try {
-        const response = await axios.post(
-            API_URL,
-            {
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-            },
-            { headers: { "Content-Type": "application/json" } }
-        );
-
-        return response.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    } catch {
-        throw new Error("Gemini Failed");
+            const resultText = response.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (resultText) {
+                return resultText;
+            }
+        } catch (err) {
+            console.warn(`Gemini model ${model} failed with status:`, err.response?.status || err.message);
+        }
     }
+    throw new Error("All Gemini models failed");
 }
 
 async function callGroq(text, prompt) {
@@ -76,32 +93,34 @@ async function callGroq(text, prompt) {
     const { Groq } = require("groq-sdk");
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    try {
-        const completion = await groq.chat.completions.create({
-            model: GROQ_MODEL,
-            temperature: 0.6,
-            top_p: 0.95,
-            max_completion_tokens: 4096,
-            stream: false,
-            messages: [
-                {
-                    role: "system",
-                    content:
-                        "You are a text tool inside a keyboard app. Output ONLY the final refined text. No explanations, no greetings, no reasoning, no <think> blocks.",
-                },
-                {
-                    role: "user",
-                    content: prompt,
-                },
-            ],
-        });
+    for (const model of GROQ_MODELS) {
+        try {
+            const completion = await groq.chat.completions.create({
+                model: model,
+                temperature: 0.6,
+                top_p: 0.95,
+                max_completion_tokens: 4096,
+                stream: false,
+                messages: [
+                    {
+                        role: "system",
+                        content:
+                            "You are a text tool inside a keyboard app. Output ONLY the final refined text. No explanations, no greetings, no reasoning, no <think> blocks.",
+                    },
+                    {
+                        role: "user",
+                        content: prompt,
+                    },
+                ],
+            });
 
-        const raw = completion.choices[0]?.message?.content || "";
-        return cleanGroqOutput(raw);
-    } catch (e) {
-        console.error("Groq Error:", e.message);
-        throw new Error("Groq Failed");
+            const raw = completion.choices[0]?.message?.content || "";
+            return cleanGroqOutput(raw);
+        } catch (e) {
+            console.warn(`Groq model ${model} failed with status:`, e.message);
+        }
     }
+    throw new Error("All Groq models failed");
 }
 
 // ---------------------- MAIN HANDLER ----------------------
@@ -152,7 +171,7 @@ app.post("/chat", (req, res) => handleRequest(req, res, "chat"));
 app.get("/app-update", (req, res) => {
     const clientVersion = req.query.version || "0.0";
     const latestVersion = "3.2.0";
-    
+
     // Quick semantic version check
     const isNewer = (latest, current) => {
         const lParts = latest.split(".");
@@ -165,7 +184,7 @@ app.get("/app-update", (req, res) => {
         }
         return false;
     };
-    
+
     const updateAvailable = isNewer(latestVersion, clientVersion);
 
     res.json({
