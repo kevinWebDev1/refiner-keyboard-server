@@ -12,11 +12,12 @@ app.use(express.json());
 
 // ---------------------- CONFIG ----------------------
 const GEMINI_MODELS = [
-    "gemini-3.5-flash-lite", // Primary: Ultra-fast typing autocomplete
-    "gemini-3.8-flash",      // Primary: High intelligence & fast rephrasing
-    "gemini-2.5-flash",      // Backup 1: Price-performance fallback
-    "gemini-2.5-flash-lite", // Backup 2: Lightweight fallback
-    "gemini-2.5-pro"         // Backup 3: Complex reasoning fallback
+    "gemini-3.5-flash-lite", // Primary: Ultra-fast typing autocomplete (15 RPM | 500 RPD)
+    "gemini-3.1-flash-lite", // Backup 1: Separate 500 RPD bucket fallback
+    "gemini-3.8-flash",      // Backup 2: High intelligence & fast rephrasing
+    "gemini-2.5-flash",      // Backup 3: Price-performance fallback
+    "gemini-2.5-flash-lite", // Backup 4: Lightweight fallback
+    "gemini-4-hydrogen"      // Last resort: High-quality reasoning (5 RPM | 20 RPD)
 ];
 const GROQ_MODELS = [
     "llama-3.1-8b-instant",     // Primary: Ultra-low latency
@@ -139,7 +140,7 @@ const handleRequest = async (req, res, type) => {
 
     const prompt =
         type === "refine"
-            ? `decode this text, understand what user wanna type. Fix grammar and spelling. result should be exactly in same way. Return ONLY the result.\nInput: ${userText}`
+            ? `Fix typos, spelling, and grammar in the input text while strictly preserving the EXACT same language, script, slang, and dialect (if Romanized Hindi/Hinglish, keep Hinglish; if Hindi, keep Hindi; if English, keep English). Never translate to English or any other language unless the input was already in that language. Output ONLY the corrected text with no explanations or quotes.\nInput: ${userText}`
             : `Reply briefly and clearly.\n${userText}`;
 
     try {
