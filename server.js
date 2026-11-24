@@ -12,11 +12,12 @@ app.use(express.json());
 
 // ---------------------- CONFIG ----------------------
 const GEMINI_MODELS = [
-    "gemini-3.5-flash-lite", // Primary: Ultra-fast typing autocomplete (15 RPM | 500 RPD)
-    "gemini-3.1-flash-lite", // Backup 1: Separate 500 RPD bucket fallback
-    "gemini-3.8-flash",      // Backup 2: High intelligence & fast rephrasing
-    "gemini-2.5-flash",      // Backup 3: Price-performance fallback
-    "gemini-2.5-flash-lite", // Backup 4: Lightweight fallback
+    "gemma-4-26b-a4b-it",    // Primary: MoE 4B active, ultra-fast, 14,400 RPD safety net
+    "gemma-4-31b-it",        // Backup 1: Dense 31B, 14,400 RPD safety net
+    "gemini-3.5-flash-lite", // Backup 2: Ultra-fast typing autocomplete (15 RPM | 500 RPD)
+    "gemini-3.1-flash-lite", // Backup 3: Separate 500 RPD bucket fallback
+    "gemini-3.8-flash",      // Backup 4: High intelligence & fast rephrasing
+    "gemini-2.5-flash",      // Backup 5: Price-performance fallback
     "gemini-4-hydrogen"      // Last resort: High-quality reasoning (5 RPM | 20 RPD)
 ];
 const GROQ_MODELS = [
@@ -146,14 +147,24 @@ const handleRequest = async (req, res, type) => {
     try {
         let resultText;
 
-        if (userApiKey) {
+        // Use user-provided key if available; otherwise use server's own Gemini key for free users
+        const serverApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+        const activeApiKey = userApiKey || serverApiKey;
+
+        if (activeApiKey) {
             try {
-                resultText = await callGemini(userText, userApiKey, prompt);
-            } catch {
+                // Priority 1: Gemma 4 (14,400 RPD) & Gemini Flash-Lite
+                resultText = await callGemini(userText, activeApiKey, prompt);
+            } catch (geminiErr) {
+                console.warn("Gemma/Gemini tier failed, falling back to Groq:", geminiErr.message);
                 resultText = await callGroq(userText, prompt);
             }
         } else {
+            // Priority 2: Groq fallback if no server Gemini key is configured
             resultText = await callGroq(userText, prompt);
+        }
+
+        if (!userApiKey) {
             incrementUsage(deviceId);
         }
 
