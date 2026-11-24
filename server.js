@@ -11,14 +11,22 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------------- CONFIG ----------------------
-const GEMINI_MODELS = [
-    "gemma-4-26b-a4b-it",    // Primary: MoE 4B active, ultra-fast, 14,400 RPD safety net
+// Flagship Gemini models for users who bring their own Google API Key
+const USER_GEMINI_MODELS = [
+    "gemini-3.5-flash-lite", // Primary: Ultra-fast typing autocomplete
+    "gemini-3.1-flash-lite", // Backup 1: Ultra-fast
+    "gemini-2.0-flash",      // Backup 2: Proven flagship
+    "gemini-1.5-flash",      // Backup 3: Stable fallback
+    "gemini-3.8-flash",      // Backup 4: High intelligence
+    "gemini-4-hydrogen"      // Last resort: High-quality reasoning
+];
+
+// Free tier models using the server's GEMINI_FREE_API_KEY (14,400 RPD safety net)
+const FREE_TIER_MODELS = [
+    "gemma-4-26b-a4b-it",    // Primary: MoE 4B active, 14,400 RPD safety net
     "gemma-4-31b-it",        // Backup 1: Dense 31B, 14,400 RPD safety net
-    "gemini-3.5-flash-lite", // Backup 2: Ultra-fast typing autocomplete (15 RPM | 500 RPD)
-    "gemini-3.1-flash-lite", // Backup 3: Separate 500 RPD bucket fallback
-    "gemini-3.8-flash",      // Backup 4: High intelligence & fast rephrasing
-    "gemini-2.5-flash",      // Backup 5: Price-performance fallback
-    "gemini-4-hydrogen"      // Last resort: High-quality reasoning (5 RPM | 20 RPD)
+    "gemini-3.5-flash-lite", // Backup 2: 500 RPD fallback
+    "gemini-3.1-flash-lite"  // Backup 3: 500 RPD fallback
 ];
 const GROQ_MODELS = [
     "llama-3.1-8b-instant",     // Primary: Ultra-low latency
@@ -66,8 +74,8 @@ function cleanGroqOutput(text = "") {
 }
 
 // ---------------------- AI HANDLERS ----------------------
-async function callGemini(text, apiKey, prompt) {
-    for (const model of GEMINI_MODELS) {
+async function callGemini(text, apiKey, prompt, models = USER_GEMINI_MODELS) {
+    for (const model of models) {
         try {
             const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
             const response = await axios.post(
@@ -147,24 +155,29 @@ const handleRequest = async (req, res, type) => {
     try {
         let resultText;
 
-        // Use user-provided key if available; otherwise use server's own Gemini key for free users
-        const serverApiKey = process.env.GEMINI_FREE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-        const activeApiKey = userApiKey || serverApiKey;
-
-        if (activeApiKey) {
+        if (userApiKey) {
+            // User brought their own API Key -> Always use flagship Gemini models!
             try {
-                // Priority 1: Gemma 4 (14,400 RPD) & Gemini Flash-Lite
-                resultText = await callGemini(userText, activeApiKey, prompt);
+                resultText = await callGemini(userText, userApiKey, prompt, USER_GEMINI_MODELS);
             } catch (geminiErr) {
-                console.warn("Gemma/Gemini tier failed, falling back to Groq:", geminiErr.message);
+                console.warn("User Gemini key failed, falling back to Groq:", geminiErr.message);
                 resultText = await callGroq(userText, prompt);
             }
         } else {
-            // Priority 2: Groq fallback if no server Gemini key is configured
-            resultText = await callGroq(userText, prompt);
-        }
+            // Free user (no API key) -> Try Gemma 4 (14,400 RPD pool) using server key, fallback to Groq
+            const serverApiKey = process.env.GEMINI_FREE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-        if (!userApiKey) {
+            if (serverApiKey) {
+                try {
+                    resultText = await callGemini(userText, serverApiKey, prompt, FREE_TIER_MODELS);
+                } catch (gemmaErr) {
+                    console.warn("Server Gemma/Gemini failed, falling back to Groq:", gemmaErr.message);
+                    resultText = await callGroq(userText, prompt);
+                }
+            } else {
+                resultText = await callGroq(userText, prompt);
+            }
+
             incrementUsage(deviceId);
         }
 
