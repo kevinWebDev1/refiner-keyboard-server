@@ -148,7 +148,7 @@ const handleRequest = async (req, res, type) => {
         let resultText;
 
         // Use user-provided key if available; otherwise use server's own Gemini key for free users
-        const serverApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+        const serverApiKey = process.env.GEMINI_FREE_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
         const activeApiKey = userApiKey || serverApiKey;
 
         if (activeApiKey) {
